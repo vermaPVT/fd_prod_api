@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+	const adminId = localStorage.getItem("token");
+	if(!adminId) {
+	window.location.href = "/login/admin";
+	}
+        async function fetchData(endpoint, callback) {
+            const response = await fetch(endpoint);
+            const data = await response.json();
+            callback(data);
+        }
+
+        function showTab(tabId) {
+            document.querySelectorAll(".tab-content").forEach(tab => tab.classList.add("hidden"));
+            document.getElementById("welcome").classList.add("hidden"); // Hide welcome message
+            document.getElementById(tabId).classList.remove("hidden");
+        }
+
+        function loadOrders() {
+            fetchData('/api/orders', (orders) => {
+                const orderList = document.getElementById("orders-list");
+                orderList.innerHTML = orders.map(order => `
+                    <tr class="border-b">
+                        <td class="p-4">${order.restaurantId.name}</td>
+                        <td class="p-4">₹${order.totalPrice}</td>
+                        <td class="p-4">${order.status}</td>
+                    </tr>
+                `).join('');
+            });
+        }
+
+        function loadRestaurants() {
+            fetchData('/api/restaurants', (restaurants) => {
+                document.getElementById("restaurants-list").innerHTML = restaurants.map(r => `
+                    <div class="p-4 bg-white shadow-md rounded-lg mb-4">
+                        <h3 class="text-lg font-semibold">${r.name}</h3>
+                        <ul class="mt-2">
+                            ${r.menu.map(item => `<li class="text-sm text-gray-600">${item.name} - ₹${item.price}</li>`).join('')}
+                        </ul>
+                        <button class="mt-4 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700" onclick="removeRestaurant('${r._id}')">Remove</button>
+                    </div>
+                `).join('');
+            });
+        }
+
+        function removeRestaurant(restaurantId) {
+            if (confirm("Are you sure you want to remove this restaurant?")) {
+                fetch(`/api/remove-restaurant/${restaurantId}`, {
+                    method: 'DELETE'
+                }).then(() => loadRestaurants());
+            }
+        }
+
+        function loadUsers() {
+            fetchData('/api/users', (users) => {
+                document.getElementById("users-list").innerHTML = users.map(u => `
+                    <li class="p-4 bg-white shadow-md rounded-lg mb-2">${u.name} - ${u.email}</li>
+                `).join('');
+            });
+        }
+
+        function loadTotals() {
+            fetchData('/api/totals', ({ totalIncome, serviceCharge, deliveryCharge }) => {
+                document.getElementById("total-income").textContent = `₹${totalIncome}`;
+                document.getElementById("service-charge").textContent = `₹${serviceCharge}`;
+                document.getElementById("delivery-charge").textContent = `₹${deliveryCharge}`;
+            });
+        }
+
+        function addRestaurant(event) {
+            event.preventDefault();
+            const formData = new FormData(event.target);
+            const restaurantData = {
+                name: formData.get("name"),
+                email: formData.get("email"),
+                password: formData.get("password"),
+                menu: [] // Ensure an empty array is sent
+            };
+
+            fetch('/api/add-restaurant', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(restaurantData)
+            }).then(response => response.json())
+              .then(data => {
+                  alert(data.message || "Restaurant added successfully!");
+                  loadRestaurants();
+                  event.target.reset();
+              }).catch(err => console.error("Error adding restaurant:", err));
+        }
+
+        window.onload = function () {
+            loadOrders();
+            loadRestaurants();
+            loadUsers();
+            loadTotals();
+            document.getElementById("welcome").classList.remove("hidden"); // Show welcome message by default
+        };
+    </script>
+</head>
+<body class="bg-gray-100">
+    <div class="flex">
+        <!-- Sidebar -->
+        <div class="w-1/4 bg-gray-900 text-white min-h-screen p-6 flex flex-col justify-between">
+            <div>
+                <h2 class="text-2xl font-bold mb-6">Admin Dashboard</h2>
+                <ul>
+                    <li><button class="w-full text-left p-3 hover:bg-gray-800 rounded-md" onclick="showTab('orders')">📦 View All Orders</button></li>
+                    <li><button class="w-full text-left p-3 hover:bg-gray-800 rounded-md" onclick="showTab('restaurants')">🍽 View All Restaurants</button></li>
+                    <li><button class="w-full text-left p-3 hover:bg-gray-800 rounded-md" onclick="showTab('addRestaurant')">➕ Add a Restaurant</button></li>
+                    <li><button class="w-full text-left p-3 hover:bg-gray-800 rounded-md" onclick="showTab('users')">👥 View All Users</button></li>
+                    <li><button class="w-full text-left p-3 hover:bg-gray-800 rounded-md" onclick="showTab('totals')">📊 View Total Income & Charges</button></li>
+                </ul>
+            </div>
+            <button class="w-full text-left p-3 bg-red-600 hover:bg-red-700 rounded-md mt-6" onclick="logout()">🚪 Logout</button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="w-3/4 p-8">
+            <!-- Welcome Message -->
+            <div id="welcome" class="tab-content">
+                <h2 class="text-xl font-bold mb-6">Welcome, Admin! 👋</h2>
+                <p class="text-gray-600">Select an option from the left menu to manage orders, restaurants, users, and more.</p>
+            </div>
+
+            <!-- Orders Tab -->
+            <div id="orders" class="tab-content hidden">
+                <h2 class="text-xl font-bold mb-6">All Orders</h2>
+                <table class="w-full bg-white shadow-md rounded-lg">
+                    <tr class="bg-gray-200">
+                        <th class="p-4">Restaurant</th>
+                        <th class="p-4">Total Price</th>
+                        <th class="p-4">Status</th>
+                    </tr>
+                    <tbody id="orders-list"></tbody>
+                </table>
+            </div>
+
+            <!-- Restaurants Tab -->
+            <div id="restaurants" class="tab-content hidden">
+                <h2 class="text-xl font-bold mb-6">All Restaurants</h2>
+                <div id="restaurants-list"></div>
+            </div>
+
+            <!-- Add Restaurant Tab -->
+            <div id="addRestaurant" class="tab-content hidden">
+                <h2 class="text-xl font-bold mb-6">Add a Restaurant</h2>
+                <form onsubmit="addRestaurant(event)" class="bg-white p-6 shadow-md rounded-lg">
+                    <label class="block font-semibold">Name:</label>
+                    <input type="text" name="name" class="w-full p-3 border rounded-lg mb-4" required>
+                    <label class="block font-semibold">Email:</label>
+                    <input type="email" name="email" class="w-full p-3 border rounded-lg mb-4" required>
+                    <label class="block font-semibold">Password:</label>
+                    <input type="password" name="password" class="w-full p-3 border rounded-lg mb-4" required>
+                    <button type="submit" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">Add Restaurant</button>
+                </form>
+            </div>
+
+            <!-- Users Tab -->
+            <div id="users" class="tab-content hidden">
+                <h2 class="text-xl font-bold mb-6">All Users</h2>
+                <ul id="users-list"></ul>
+            </div>
+
+            <!-- Totals Tab -->
+            <div id="totals" class="tab-content hidden">
+                <h2 class="text-xl font-bold mb-6">Total Income & Charges</h2>
+                <div class="bg-white p-6 shadow-md rounded-lg">
+                    <p><strong>Total Income:</strong> <span id="total-income"></span></p>
+                    <p><strong>Total Service Charge:</strong> <span id="service-charge"></span></p>
+                    <p><strong>Total Delivery Charge:</strong> <span id="delivery-charge"></span></p>
+                </div>
+            </div>
+        </div>
+    </div>
+<script>
+function logout() {
+localStorage.removeItem("token");
+window.location.href = "/login/admin";
+}
+</script>
+</body>
+</html>

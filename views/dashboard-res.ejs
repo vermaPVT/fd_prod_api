@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurant Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-gray-50 min-h-screen flex">
+    
+    <!-- Sidebar -->
+    <aside class="w-64 bg-blue-700 text-white min-h-screen p-5 flex flex-col relative shadow-lg">
+        <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+            <i data-lucide="store" class="w-6 h-6"></i>
+            <%= restaurant.name %>
+        </h2>
+        <nav class="flex-grow">
+            <ul>
+                <li class="mb-4">
+                    <a href="#" onclick="showOrders()" class="flex items-center gap-2 p-3 rounded-lg hover:bg-blue-600 transition">
+                        <i data-lucide="list" class="w-5 h-5"></i> View Orders
+                    </a>
+                </li>
+                <li class="mb-4">
+                    <a href="#" onclick="showMenu()" class="flex items-center gap-2 p-3 rounded-lg hover:bg-blue-600 transition">
+                        <i data-lucide="menu" class="w-5 h-5"></i> View Menu
+                    </a>
+                </li>
+                <li class="mb-4">
+                    <a href="#" onclick="showAddMenuForm()" class="flex items-center gap-2 p-3 rounded-lg hover:bg-blue-600 transition">
+                        <i data-lucide="plus-circle" class="w-5 h-5"></i> Add Menu Item
+                    </a>
+                </li>
+<li class="mb-4">
+                    <a href="#" onclick="showChangeDeliveryPassword()" class="flex items-center gap-2 p-3 rounded-lg hover:bg-blue-600 transition">
+                        <i data-lucide="lock" class="w-5 h-5"></i> Change Delivery Partner Password
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        <button onclick="logout()" class="absolute bottom-6 left-5 w-56 bg-red-500 text-white flex items-center gap-2 p-3 rounded-lg hover:bg-red-600 transition">
+            <i data-lucide="log-out" class="w-5 h-5"></i> Logout
+        </button>
+    </aside>
+    
+    <!-- Main Content -->
+    <main class="flex-1 p-8">
+        <div id="content" class="bg-white p-6 shadow-md rounded-lg">
+            <h2 class="text-2xl font-semibold">Welcome, <%= restaurant.name %>!</h2>
+            <p class="text-gray-600">Manage your orders and menu from here.</p>
+        </div>
+    </main>
+    
+    <script>
+	const afrid = localStorage.getItem("id");
+	if(!afrid) {
+		window.location.href = "/login/restaurant";
+	}
+        lucide.createIcons();
+        const restaurantId = "<%= restaurant._id %>";
+
+function showChangeDeliveryPassword() {
+            document.getElementById("content").innerHTML = `
+                <h2 class='text-2xl font-bold mb-4'>Change Delivery Partner Password</h2>
+                <form onsubmit="changeDeliveryPartnerPassword(event)" class='space-y-4'>
+                    <input type='password' id='newPassword' placeholder='New Password' class='border p-2 w-full rounded-lg shadow-sm' required>
+                    <input type='password' id='confirmNewPassword' placeholder='Confirm New Password' class='border p-2 w-full rounded-lg shadow-sm' required>
+                    <button type='submit' class='bg-blue-500 text-white p-3 rounded-lg hover:bg-blue-600 transition'>
+                        Update Password
+                    </button>
+                </form>
+            `;
+        }
+
+        async function changeDeliveryPartnerPassword(event) {
+            event.preventDefault();
+            const newPassword = document.getElementById("newPassword").value;
+            const confirmNewPassword = document.getElementById("confirmNewPassword").value;
+            
+            if (newPassword !== confirmNewPassword) {
+                alert("Passwords do not match");
+                return;
+            }
+            
+            const response = await fetch("/restaurant/update-delivery-password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ restaurantId, newPassword })
+            });
+            
+            if (response.ok) {
+                alert("Password updated successfully!");
+            } else {
+                alert("Error updating password");
+            }
+        }
+
+        async function showOrders() {
+            const response = await fetch(`/restaurant/orders/${restaurantId}`);
+            const data = await response.json();
+            let content = `<h2 class='text-2xl font-bold mb-4'>Orders</h2>`;
+            content += `<p class='mb-2 font-semibold'>Total Income: ₹${data.totalIncome}</p>`;
+            content += `<p class='mb-4 font-semibold'>Total Delivery Partner Income: ₹${data.deliveryIncome}</p>`;
+            content += `<ul>`;
+            data.orders.forEach(order => {
+                content += `<li class='border p-3 mb-2 rounded-lg shadow-sm'>
+                    <span class='font-semibold'>Order ID:</span> ${order._id} | 
+                    <span class='font-semibold'>Total:</span> ₹${order.totalPrice} | 
+                    <span class='font-semibold'>Status:</span> ${order.status}
+                </li>`;
+            });
+            content += `</ul>`;
+            document.getElementById("content").innerHTML = content;
+        }
+        
+        async function showMenu() {
+            const response = await fetch(`/restaurant/menu/${restaurantId}`);
+            const menu = await response.json();
+            let content = `<h2 class='text-2xl font-bold mb-4'>Menu</h2><ul>`;
+            menu.forEach(item => {
+                content += `<li class='border p-3 mb-2 rounded-lg shadow-sm flex justify-between items-center'>
+                    <div>
+                        <span class='font-semibold'>${item.name} - ₹${item.price}</span> <br>
+                        <span class='text-gray-600'>${item.description}</span>
+                    </div>
+                    <button onclick='removeMenuItem("${item._id}")' class='bg-red-500 text-white p-2 rounded-lg hover:bg-red-600 transition'>
+                        <i data-lucide="trash"></i> Delete
+                    </button>
+                </li>`;
+            });
+            content += `</ul>`;
+            document.getElementById("content").innerHTML = content;
+	    lucide.createIcons();
+        }
+
+async function removeMenuItem(itemId) {
+            const response = await fetch(`/restaurant/remove-menu`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ restaurantId, itemId })
+            });
+            
+            if (response.ok) {
+                alert("Menu item removed successfully!");
+                showMenu();
+            } else {
+                alert("Error removing menu item");
+            }
+        }
+        
+        function showAddMenuForm() {
+            document.getElementById("content").innerHTML = `
+                <h2 class='text-2xl font-bold mb-4'>Add Menu Item</h2>
+                <form onsubmit="addMenuItem(event)" class='space-y-4'>
+                    <input type='text' id='itemName' placeholder='Item Name' class='border p-2 w-full rounded-lg shadow-sm' required>
+                    <input type='number' id='itemPrice' placeholder='Price' class='border p-2 w-full rounded-lg shadow-sm' required>
+                    <textarea id='itemDescription' placeholder='Description' class='border p-2 w-full rounded-lg shadow-sm' required></textarea>
+                    <button type='submit' class='bg-green-500 text-white p-3 rounded-lg hover:bg-green-600 transition'>
+                        <i data-lucide="plus"></i> Add Item
+                    </button>
+                </form>
+            `;
+            lucide.createIcons();
+        }
+        
+        async function addMenuItem(event) {
+            event.preventDefault();
+            const name = document.getElementById("itemName").value;
+            const price = document.getElementById("itemPrice").value;
+            const description = document.getElementById("itemDescription").value;
+            
+            const response = await fetch("/restaurant/add-menu", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ restaurantId, name, price, description })
+            });
+            
+            if (response.ok) {
+                alert("Menu item added successfully!");
+                showMenu();
+            } else {
+                alert("Error adding menu item");
+            }
+        }
+        
+        function logout() {
+            localStorage.removeItem("id");
+            window.location.href = "/login/restaurant";
+        }
+    </script>
+</body>
+</html>

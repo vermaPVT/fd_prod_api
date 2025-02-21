@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delivery Partner Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+	const restaurantId = localStorage.getItem("restaurantId");
+	if(!restaurantId) {
+		window.location.href = "/login/deliverypartner";
+	}
+    </script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center">
+    <header class="w-full bg-blue-500 p-4 text-white text-center text-xl font-bold">
+        Welcome to the Delivery Partner Dashboard
+    </header>
+
+    <main class="flex flex-col items-center mt-10 w-full max-w-4xl bg-white p-6 rounded-lg shadow-md">
+        <h2 class="text-2xl font-semibold mb-4">Your Deliveries</h2>
+        
+        <div id="orders-container" class="w-full"></div>
+    </main>
+
+    <!-- Logout Button -->
+    <button onclick="logout()" class="mt-6 bg-red-500 text-white px-4 py-2 rounded">
+        Logout
+    </button>
+
+    <script>
+
+        async function fetchOrders() {
+            const response = await fetch(`/api/delivery/orders/${restaurantId}`);
+            const data = await response.json();
+
+            if (data.success) {
+                displayOrders(data.orders);
+            }
+        }
+
+        function displayOrders(orders) {
+            const container = document.getElementById("orders-container");
+            container.innerHTML = "";
+
+            // Filter out delivered orders
+            const activeOrders = orders.filter(order => order.status !== "Delivered");
+
+            if (activeOrders.length === 0) {
+                container.innerHTML = `<p class="text-gray-500 text-lg text-center">No orders to display</p>`;
+                return;
+            }
+
+            activeOrders.forEach(order => {
+                const orderElement = document.createElement("div");
+                orderElement.className = "border p-4 mb-4 w-full bg-white rounded shadow";
+
+                let otpInputAndButtons = `
+                    <label for="otp-${order._id}" class="block mt-2">Enter OTP:</label>
+                    <input type="number" id="otp-${order._id}" class="border p-1 w-full mb-2" placeholder="Enter OTP">
+                    <button class="bg-green-500 text-white px-4 py-2 rounded ml-2" onclick="updateStatus('${order._id}', 'Delivered')">
+                        Mark as Delivered
+                    </button>
+                `;
+
+                orderElement.innerHTML = `
+                    <p><strong>Order ID:</strong> ${order._id}</p>
+                    <p><strong>User Name:</strong> ${order.userId?.name || "N/A"}</p>
+                    <p><strong>Address:</strong> ${order.userId?.address || "N/A"}</p>
+                    <p><strong>Status:</strong> <span id="status-${order._id}">${order.status}</span></p>
+                    <p><strong>Total Price:</strong> Rs. ${order.totalPrice} + Charges</p>
+                    ${otpInputAndButtons}
+                `;
+
+                container.appendChild(orderElement);
+            });
+        }
+
+        async function updateStatus(orderId, newStatus) {
+            const otpInput = document.getElementById(`otp-${orderId}`);
+            if (!otpInput) return;
+
+            const otp = otpInput.value;
+            if (!otp) {
+                alert("Please enter OTP");
+                return;
+            }
+
+            const response = await fetch("/api/delivery/update-status", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ orderId, otp, newStatus }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                document.getElementById(`status-${orderId}`).innerText = newStatus;
+                alert(data.message);
+                fetchOrders(); // Refresh orders to hide delivered ones
+            } else {
+                alert(data.message);
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem("restaurantId");
+            window.location.href = "/login/deliverypartner";
+        }
+
+        fetchOrders();
+    </script>
+</body>
+</html>
